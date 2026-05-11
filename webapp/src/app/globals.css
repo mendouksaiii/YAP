@@ -1,0 +1,152 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500&family=Geist:wght@400;500;600;700;800&display=swap');
+
+:root {
+  color-scheme: dark;
+  --font-geist: 'Geist';
+  --font-geist-mono: 'Geist Mono';
+}
+
+html, body {
+  background: #0a0a0b;
+  color: #ededf0;
+  font-family: 'Geist', system-ui, -apple-system, sans-serif;
+  font-feature-settings: "ss01";
+  -webkit-font-smoothing: antialiased;
+}
+
+@font-face { font-family: 'Geist'; font-display: swap; src: local('Geist'); }
+
+.shimmer-bg {
+  background-size: 200% 100%;
+  animation: shimmer 1.6s linear infinite;
+}
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.animate-fade {
+  animation: fadeIn 0.4s ease-out;
+}
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Logo: subtle float + occasional eye blink */
+.animate-float {
+  animation: float 6s ease-in-out infinite;
+}
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+.yap-eyes {
+  animation: yapBlink 5.5s infinite;
+  transform-origin: center 48px;
+}
+@keyframes yapBlink {
+  0%, 92%, 100% { transform: scaleY(1); }
+  94%, 98% { transform: scaleY(0.1); }
+}
+
+/* Gentle bob for level emoji and similar */
+.animate-bob {
+  animation: bob 3.5s ease-in-out infinite;
+}
+@keyframes bob {
+  0%, 100% { transform: translateY(0) rotate(-2deg); }
+  50% { transform: translateY(-6px) rotate(2deg); }
+}
+
+/* Slow ambient glow rotation */
+.animate-glow-pan {
+  animation: glowPan 14s ease-in-out infinite;
+}
+@keyframes glowPan {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33%      { transform: translate(20px, -10px) scale(1.05); }
+  66%      { transform: translate(-15px, 15px) scale(0.97); }
+}
+
+/* Gradient text shimmer */
+.animate-text-shine {
+  background-size: 200% auto;
+  animation: textShine 4s linear infinite;
+}
+@keyframes textShine {
+  to { background-position: 200% center; }
+}
+
+/* Sidebar nav indicator slide */
+.nav-indicator {
+  transition: transform 0.25s cubic-bezier(0.2, 0.65, 0.3, 1);
+}
+
+/* Page enter (used on dashboard route changes) */
+.page-enter {
+  animation: pageEnter 0.4s cubic-bezier(0.2, 0.65, 0.3, 1) both;
+}
+@keyframes pageEnter {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Stagger helper — pair with .stagger-child */
+.stagger > * {
+  opacity: 0;
+  animation: pageEnter 0.5s cubic-bezier(0.2, 0.65, 0.3, 1) forwards;
+}
+.stagger > *:nth-child(1) { animation-delay: 60ms; }
+.stagger > *:nth-child(2) { animation-delay: 140ms; }
+.stagger > *:nth-child(3) { animation-delay: 220ms; }
+.stagger > *:nth-child(4) { animation-delay: 300ms; }
+.stagger > *:nth-child(5) { animation-delay: 380ms; }
+.stagger > *:nth-child(6) { animation-delay: 460ms; }
+.stagger > *:nth-child(7) { animation-delay: 540ms; }
+.stagger > *:nth-child(8) { animation-delay: 620ms; }
+.stagger > *:nth-child(9) { animation-delay: 700ms; }
+.stagger > *:nth-child(10) { animation-delay: 780ms; }
+
+/* Hover lift utility */
+.hover-lift {
+  transition: transform 0.25s cubic-bezier(0.2,0.65,0.3,1), box-shadow 0.25s ease;
+}
+.hover-lift:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 32px rgba(0,0,0,0.3), 0 0 0 1px rgba(255,255,255,0.06);
+}
+
+/* Aurora gradient breathing (for big hero glows) */
+.animate-aurora {
+  animation: aurora 12s ease-in-out infinite;
+}
+@keyframes aurora {
+  0%, 100% { opacity: 0.7; transform: scale(1); }
+  50%      { opacity: 1;   transform: scale(1.08); }
+}
+
+/* Cursor-style typing dot for mic idle */
+.dot-pulse {
+  animation: dotPulse 1.8s ease-in-out infinite;
+}
+@keyframes dotPulse {
+  0%, 100% { opacity: 0.4; transform: scale(0.9); }
+  50%      { opacity: 1;   transform: scale(1.15); }
+}
+
+/* Respect motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Selection color */
+::selection { background: rgba(255, 94, 58, 0.35); color: #fff; }

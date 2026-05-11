@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Yap — Voice-First Coding</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500&family=Geist:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<style>
+:root {
+  --bg: #0a0a0b;
+  --panel: #131316;
+  --panel-2: #1a1a1f;
+  --border: #26262d;
+  --text: #ededf0;
+  --muted: #8b8b94;
+  --accent: #ff5e3a;
+  --accent-2: #ff8a3a;
+  --green: #4ade80;
+  --red: #f87171;
+}
+* { box-sizing: border-box; }
+html, body {
+  margin: 0; padding: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Geist', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  font-feature-settings: "ss01", "cv11";
+  -webkit-font-smoothing: antialiased;
+  height: 100%;
+}
+.container {
+  max-width: 380px;
+  margin: 0 auto;
+  padding: 18px 16px 24px;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* --- Header --- */
+.header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 18px;
+}
+.logo {
+  display: flex; align-items: center; gap: 8px;
+}
+.logo-mark {
+  width: 28px; height: 28px;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px; font-weight: 800; color: #fff;
+  box-shadow: 0 0 24px rgba(255, 94, 58, 0.35);
+}
+.logo-text {
+  font-size: 20px; font-weight: 800; letter-spacing: -0.5px;
+}
+.logo-tag {
+  font-family: 'Geist Mono', monospace;
+  font-size: 10px; color: var(--muted);
+  margin-left: 4px;
+}
+.live-pill {
+  font-size: 10px; font-weight: 600;
+  padding: 4px 8px; border-radius: 999px;
+  background: rgba(74, 222, 128, 0.12);
+  color: var(--green);
+  border: 1px solid rgba(74, 222, 128, 0.25);
+  display: flex; align-items: center; gap: 5px;
+  text-transform: uppercase; letter-spacing: 0.5px;
+}
+.live-pill::before {
+  content: ''; width: 6px; height: 6px;
+  border-radius: 50%; background: var(--green);
+  animation: blink 1.4s ease-in-out infinite;
+}
+@keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+/* --- Mode tabs --- */
+.modes {
+  display: flex; gap: 4px;
+  background: var(--panel);
+  padding: 4px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  margin-bottom: 16px;
+}
+.mode {
+  flex: 1; padding: 8px 6px;
+  text-align: center; cursor: pointer;
+  background: transparent; color: var(--muted);
+  border: none; border-radius: 7px;
+  font-family: inherit; font-size: 12px; font-weight: 600;
+  transition: all 0.15s;
+  display: flex; align-items: center; justify-content: center; gap: 4px;
+}
+.mode:hover { color: var(--text); }
+.mode.active {
+  background: var(--panel-2);
+  color: var(--text);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.3);
+}
+
+/* --- Mic button --- */
+.mic-card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 24px 16px;
+  text-align: center;
+  margin-bottom: 16px;
+  position: relative;
+  overflow: hidden;
+}
+.mic-button {
+  width: 88px; height: 88px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  display: flex; align-items: center; justify-content: center;
+  margin: 0 auto 12px;
+  cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.2s;
+  box-shadow: 0 8px 32px rgba(255, 94, 58, 0.35);
+  position: relative;
+}
+.mic-button:hover { transform: scale(1.04); }
+.mic-button:active { transform: scale(0.98); }
+.mic-button.recording {
+  background: linear-gradient(135deg, #ef4444, #f97316);
+}
+.mic-button.recording::before {
+  content: ''; position: absolute; inset: -8px;
+  border-radius: 50%; border: 2px solid var(--accent);
+  animation: pulse-ring 1.4s ease-out infinite;
+}
+@keyframes pulse-ring {
+  0% { transform: scale(0.95); opacity: 1; }
+  100% { transform: scale(1.4); opacity: 0; }
+}
+.mic-button svg { width: 38px; height: 38px; color: #fff; }
+.mic-label {
+  font-size: 13px; color: var(--text); font-weight: 500;
+}
+.mic-hint {
+  font-family: 'Geist Mono', monospace;
+  font-size: 11px; color: var(--muted); margin-top: 4px;
+}
+
+/* --- Active persona indicator --- */
+.watcher {
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  margin-bottom: 12px;
+}
+.watcher-avatar {
+  width: 36px; height: 36px; border-radius: 50%;
+  background: linear-gradient(135deg, #4338ca, #7e22ce);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px; flex-shrink: 0;
+}
+.watcher-info { flex: 1; min-width: 0; }
+.watcher-label {
+  font-size: 10px; font-weight: 600;
+  color: var(--muted); text-transform: uppercase; letter-spacing: 0.8px;
+}
+.watcher-name {
+  font-size: 14px; font-weight: 700; color: var(--text);
+  margin-top: 1px;
+}
+.watcher-status {
+  font-family: 'Geist Mono', monospace;
+  font-size: 10px; color: var(--green);
+  display: flex; align-items: center; gap: 4px;
+}
+.watcher-status::before {
+  content: ''; width: 5px; height: 5px;
+  border-radius: 50%; background: var(--green);
+  animation: blink 1.4s ease-in-out infinite;
+}
+
+/* --- Persona grid --- */
+.section-label {
+  font-size: 10px; font-weight: 600;
+  color: var(--muted); text-transform: uppercase; letter-spacing: 0.8px;
+  margin: 14px 4px 8px;
+}
+.personas {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+  margin-bottom: 16px;
+}
+.persona {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 8px;
+  cursor: pointer;
+  transition: all 0.12s;
+  display: flex; align-items: center; gap: 8px;
+}
+.persona:hover { border-color: #3a3a44; background: var(--panel-2); }
+.persona.selected {
+  border-color: var(--accent);
+  background: rgba(255, 94, 58, 0.08);
+}
+.persona-avatar {
+  width: 28px; height: 28px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px; flex-shrink: 0;
+}
+.persona-info { flex: 1; min-width: 0; overflow: hidden; }
+.persona-name {
+  font-size: 12px; font-weight: 600; color: var(--text);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.persona-tag {
+  font-family: 'Geist Mono', monospace;
+  font-size: 9px; color: var(--muted);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* --- Output section --- */
+.output {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px;
+  font-family: 'Geist Mono', monospace;
+  font-size: 11px;
+  color: var(--muted);
+  min-height: 40px;
+  margin-bottom: 8px;
+}
+.output.has-content { color: var(--text); }
+
+.transcript-bubble {
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 12px;
+  font-style: italic;
+  margin-bottom: 8px;
+  border-left: 2px solid var(--accent);
+}
+
+.review-bubble {
+  background: linear-gradient(135deg, rgba(67, 56, 202, 0.08), rgba(126, 34, 206, 0.08));
+  border: 1px solid rgba(126, 34, 206, 0.2);
+  border-radius: 12px;
+  padding: 14px;
+  margin-bottom: 10px;
+  position: relative;
+}
+.review-bubble.speaking {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px rgba(255, 94, 58, 0.3);
+}
+.review-header {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 8px;
+}
+.review-name {
+  font-size: 12px; font-weight: 700; color: var(--text);
+}
+.review-status {
+  font-family: 'Geist Mono', monospace;
+  font-size: 10px; color: var(--accent);
+  margin-left: auto;
+  display: flex; align-items: center; gap: 4px;
+}
+.speaker-bars {
+  display: inline-flex; gap: 2px; align-items: center; height: 12px;
+}
+.speaker-bars span {
+  display: block; width: 2px; background: var(--accent);
+  animation: bar 0.8s ease-in-out infinite;
+}
+.speaker-bars span:nth-child(1) { height: 6px; animation-delay: -0.4s; }
+.speaker-bars span:nth-child(2) { height: 10px; animation-delay: -0.2s; }
+.speaker-bars span:nth-child(3) { height: 4px; animation-delay: 0s; }
+.speaker-bars span:nth-child(4) { height: 8px; animation-delay: -0.3s; }
+@keyframes bar { 0%, 100% { transform: scaleY(0.4); } 50% { transform: scaleY(1); } }
+
+.review-text {
+  font-size: 13px; line-height: 1.5; color: var(--text);
+}
+
+.footer {
+  margin-top: auto; padding-top: 16px;
+  font-family: 'Geist Mono', monospace;
+  font-size: 10px; color: var(--muted);
+  text-align: center;
+}
+.footer .kbd {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 2px 6px;
+  margin: 0 2px;
+}
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <div class="logo">
+      <div class="logo-mark">Y</div>
+      <div class="logo-text">Yap</div>
+      <span class="logo-tag">v0.1</span>
+    </div>
+    <div class="live-pill">Live</div>
+  </div>
+
+  <div class="modes">
+    <button class="mode active" data-mode="build">🛠️ Build</button>
+    <button class="mode" data-mode="review">🔥 Review</button>
+    <button class="mode" data-mode="roast">👁️ Roast</button>
+  </div>
+
+  <!-- Active watcher (Roast mode) -->
+  <div class="watcher" id="watcher" style="display:none;">
+    <div class="watcher-avatar">🐧</div>
+    <div class="watcher-info">
+      <div class="watcher-label">Watching your code</div>
+      <div class="watcher-name">Linus Torvalds</div>
+    </div>
+    <div class="watcher-status">live</div>
+  </div>
+
+  <div class="mic-card">
+    <div class="mic-button" id="mic">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/>
+        <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+        <line x1="12" y1="19" x2="12" y2="22"/>
+      </svg>
+    </div>
+    <div class="mic-label" id="micLabel">Tap to talk</div>
+    <div class="mic-hint" id="micHint">Describe what you want to build</div>
+  </div>
+
+  <div id="reviewArea"></div>
+
+  <div class="section-label" id="personaLabel">Pick your reviewer</div>
+  <div class="personas" id="personas"></div>
+
+  <div class="footer">
+    Press <span class="kbd">⌘</span><span class="kbd">⇧</span><span class="kbd">Y</span> to toggle
+  </div>
+</div>
+
+<script>
+const PERSONAS = [
+  { id: 'linus', name: 'Linus Torvalds', emoji: '🐧', tag: 'brutal', color: '#1f6feb' },
+  { id: 'carmack', name: 'John Carmack', emoji: '🚀', tag: 'analytical', color: '#7c3aed' },
+  { id: 'dhh', name: 'DHH', emoji: '🛤️', tag: 'opinionated', color: '#cc0000' },
+  { id: 'uncle_bob', name: 'Uncle Bob', emoji: '👴', tag: 'SOLID', color: '#4ade80' },
+  { id: 'rich_hickey', name: 'Rich Hickey', emoji: '🧙', tag: 'philosophical', color: '#a855f7' },
+  { id: 'bjarne', name: 'Bjarne', emoji: '⚙️', tag: 'C++', color: '#f59e0b' },
+  { id: 'guido', name: 'Guido', emoji: '🐍', tag: 'pythonic', color: '#3b82f6' },
+  { id: 'prime', name: 'Primeagen', emoji: '🔥', tag: 'BLAZINGLY FAST', color: '#ef4444' },
+  { id: 'theo', name: 'Theo', emoji: '⚡', tag: 'TypeScript', color: '#06b6d4' },
+  { id: 'kelsey', name: 'Kelsey', emoji: '☸️', tag: 'k8s', color: '#0ea5e9' },
+];
+
+let mode = 'build';
+let selectedPersona = 'linus';
+
+const $personas = document.getElementById('personas');
+const $watcher = document.getElementById('watcher');
+const $mic = document.getElementById('mic');
+const $micLabel = document.getElementById('micLabel');
+const $micHint = document.getElementById('micHint');
+const $personaLabel = document.getElementById('personaLabel');
+const $reviewArea = document.getElementById('reviewArea');
+
+function renderPersonas() {
+  $personas.innerHTML = '';
+  PERSONAS.forEach(p => {
+    const el = document.createElement('div');
+    el.className = 'persona' + (p.id === selectedPersona ? ' selected' : '');
+    el.innerHTML = `
+      <div class="persona-avatar" style="background: linear-gradient(135deg, ${p.color}, ${p.color}88)">${p.emoji}</div>
+      <div class="persona-info">
+        <div class="persona-name">${p.name}</div>
+        <div class="persona-tag">${p.tag}</div>
+      </div>
+    `;
+    el.onclick = () => {
+      selectedPersona = p.id;
+      renderPersonas();
+      updateWatcher();
+    };
+    $personas.appendChild(el);
+  });
+}
+
+function updateWatcher() {
+  const p = PERSONAS.find(x => x.id === selectedPersona);
+  if (!p) return;
+  $watcher.querySelector('.watcher-avatar').textContent = p.emoji;
+  $watcher.querySelector('.watcher-avatar').style.background = `linear-gradient(135deg, ${p.color}, ${p.color}88)`;
+  $watcher.querySelector('.watcher-name').textContent = p.name;
+}
+
+document.querySelectorAll('.mode').forEach(b => {
+  b.onclick = () => {
+    document.querySelectorAll('.mode').forEach(x => x.classList.remove('active'));
+    b.classList.add('active');
+    mode = b.dataset.mode;
+
+    if (mode === 'build') {
+      $watcher.style.display = 'none';
+      $micLabel.textContent = 'Tap to talk';
+      $micHint.textContent = 'Describe what you want to build';
+      $personaLabel.textContent = 'Pick your reviewer';
+    } else if (mode === 'review') {
+      $watcher.style.display = 'none';
+      $micLabel.textContent = 'Tap to review';
+      $micHint.textContent = 'Open a file, then say "review this"';
+      $personaLabel.textContent = 'Pick your reviewer';
+    } else if (mode === 'roast') {
+      $watcher.style.display = 'flex';
+      updateWatcher();
+      $micLabel.textContent = 'Roast mode: ON';
+      $micHint.textContent = 'They\'ll react every time you edit code';
+      $personaLabel.textContent = 'Pick who watches';
+    }
+  };
+});
+
+let recording = false;
+$mic.onclick = () => {
+  recording = !recording;
+  $mic.classList.toggle('recording', recording);
+  if (recording) {
+    $micLabel.textContent = 'Listening...';
+    $micHint.textContent = 'Tap to stop';
+    setTimeout(() => {
+      // demo: show a fake review bubble
+      if (mode === 'roast' || mode === 'review') {
+        $reviewArea.innerHTML = `
+          <div class="review-bubble speaking">
+            <div class="review-header">
+              <div class="persona-avatar" style="width:24px;height:24px;background:#1f6feb;font-size:12px;">🐧</div>
+              <div class="review-name">Linus Torvalds</div>
+              <div class="review-status">
+                <div class="speaker-bars"><span></span><span></span><span></span><span></span></div>
+                speaking
+              </div>
+            </div>
+            <div class="review-text">"What the hell is this? You're declaring a variable with <code>var</code> in 2026? Did you also bring a fax machine to the office?"</div>
+          </div>
+        `;
+      }
+      recording = false;
+      $mic.classList.remove('recording');
+      $micLabel.textContent = mode === 'build' ? 'Tap to talk' : (mode === 'review' ? 'Tap to review' : 'Roast mode: ON');
+      $micHint.textContent = mode === 'build' ? 'Describe what you want to build' : (mode === 'review' ? 'Open a file, then say "review this"' : 'They\'ll react every time you edit code');
+    }, 1200);
+  }
+};
+
+renderPersonas();
+</script>
+</body>
+</html>

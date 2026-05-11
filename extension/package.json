@@ -1,0 +1,97 @@
+{
+  "name": "yap",
+  "displayName": "Yap — Voice-First Coding",
+  "description": "Build apps and get code reviews from famous devs — entirely by voice.",
+  "version": "0.1.0",
+  "publisher": "yap",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other",
+    "AI"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "yap.open",
+        "title": "Yap: Open Voice Panel"
+      },
+      {
+        "command": "yap.review",
+        "title": "Yap: Get Famous Dev Code Review"
+      },
+      {
+        "command": "yap.build",
+        "title": "Yap: Build Something by Voice"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "yap-sidebar",
+          "title": "Yap",
+          "icon": "media/mic.svg"
+        }
+      ]
+    },
+    "views": {
+      "yap-sidebar": [
+        {
+          "id": "yap.panel",
+          "name": "Yap",
+          "type": "webview"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Yap",
+      "properties": {
+        "yap.elevenlabsApiKey": {
+          "type": "string",
+          "default": "",
+          "description": "ElevenLabs API key"
+        },
+        "yap.geminiApiKey": {
+          "type": "string",
+          "default": "",
+          "description": "Google Gemini API key (used for persona-flavored reviews and as Build-mode fallback)"
+        },
+        "yap.cursorApiKey": {
+          "type": "string",
+          "default": "",
+          "description": "Cursor API key (cursor.com/dashboard/integrations). When set, Build Mode uses the Cursor SDK instead of Gemini."
+        },
+        "yap.roastEnabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Live Roast Mode — react to every file edit with the active persona's voice."
+        },
+        "yap.activePersona": {
+          "type": "string",
+          "default": "linus",
+          "description": "Default persona id for Roast Mode."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.3.0",
+    "@vscode/vsce": "^2.22.0"
+  },
+  "optionalDependencies": {
+    "@cursor/sdk": "*"
+  }
+}

@@ -1,0 +1,36 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build outputs
+.next/
+out/
+build/
+dist/
+extension/out/
+
+# Env + secrets
+.env
+.env.local
+.env.*.local
+*.vsix
+
+# Voice samples (large, can regenerate)
+voices/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+
+# Vercel
+.vercel

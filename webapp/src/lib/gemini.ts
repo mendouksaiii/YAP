@@ -20,15 +20,31 @@ class GeminiError extends Error {
   constructor(public status: number, message: string) { super(message); }
 }
 
+interface GenOpts {
+  /** Force the model into strict JSON-output mode against this schema. */
+  responseSchema?: Record<string, unknown>;
+  /** Override default max tokens. Build needs more; reviews need less. */
+  maxOutputTokens?: number;
+  /** Override default temperature. */
+  temperature?: number;
+}
+
 async function callGeminiOnce(
   apiKey: string,
   model: string,
   prompt: string,
   systemInstruction?: string,
+  opts: GenOpts = {},
 ): Promise<string> {
   const body: Record<string, unknown> = {
     contents: [{ parts: [{ text: prompt }] }],
-    generationConfig: { temperature: 0.85, maxOutputTokens: 16384 },
+    generationConfig: {
+      temperature: opts.temperature ?? 0.85,
+      maxOutputTokens: opts.maxOutputTokens ?? 16384,
+      ...(opts.responseSchema
+        ? { responseMimeType: "application/json", responseSchema: opts.responseSchema }
+        : {}),
+    },
   };
   if (systemInstruction) body.systemInstruction = { parts: [{ text: systemInstruction }] };
 
@@ -49,16 +65,16 @@ async function callGemini(
   apiKey: string,
   prompt: string,
   systemInstruction?: string,
+  opts: GenOpts = {},
 ): Promise<string> {
   let lastErr: GeminiError | null = null;
   for (const model of MODEL_CHAIN) {
     try {
-      return await callGeminiOnce(apiKey, model, prompt, systemInstruction);
+      return await callGeminiOnce(apiKey, model, prompt, systemInstruction, opts);
     } catch (err) {
       lastErr = err instanceof GeminiError ? err : new GeminiError(500, String(err));
-      // Only rotate on quota / availability errors. On a true 4xx (bad input) bail immediately.
+      // Only rotate on quota / availability / server errors.
       if (lastErr.status !== 429 && lastErr.status !== 503 && lastErr.status !== 500) break;
-      // try next model
     }
   }
   throw new Error(
@@ -101,15 +117,83 @@ IMAGES — VERY IMPORTANT:
 - For decorative graphics, prefer pure CSS gradients, inline SVG, or emoji. NEVER reference local files like /logo.png — there is no filesystem.
 - Every <img> tag MUST have width and height attributes set, plus loading="lazy".
 
-Output STRICT JSON (no markdown, no commentary):
-{
-  "title": "Short catchy title (3-5 words)",
-  "html": "<!DOCTYPE html>...</html>"
-}`;
+Return your response as JSON with two fields:
+- "title": a short catchy title (3-5 words)
+- "html": the complete HTML document starting with <!DOCTYPE html>`;
 
-  const raw = await callGemini(apiKey, userPrompt, system);
-  const parsed = JSON.parse(stripFences(raw)) as GeneratedApp;
+  const raw = await callGemini(apiKey, userPrompt, system, {
+    // Force the model into strict JSON mode against this schema. Eliminates the
+    // unescaped-quote / truncation issues we'd hit when asking for free-form JSON.
+    responseSchema: {
+      type: "OBJECT",
+      properties: {
+        title: { type: "STRING" },
+        html: { type: "STRING" },
+      },
+      required: ["title", "html"],
+    },
+    maxOutputTokens: 32768,
+    temperature: 0.85,
+  });
+
+  const parsed = parseAppResponse(raw);
   return { title: parsed.title, html: sanitizeImages(parsed.html) };
+}
+
+/** Robust parser: tries JSON first, falls back to extracting raw HTML if the model
+ *  still emits malformed JSON (e.g. unescaped quotes, truncation). Always returns
+ *  something usable so the user never sees a JSON parse error.
+ */
+function parseAppResponse(raw: string): GeneratedApp {
+  const cleaned = stripFences(raw);
+
+  // Happy path: valid JSON
+  try {
+    const parsed = JSON.parse(cleaned) as GeneratedApp;
+    if (parsed.html && parsed.title) return parsed;
+    if (parsed.html) return { title: "Yap App", html: parsed.html };
+  } catch { /* fall through */ }
+
+  // Fallback A: a complete <!DOCTYPE html>…</html> block embedded in the text
+  const docMatch = cleaned.match(/<!DOCTYPE\s+html[\s\S]*?<\/html\s*>/i);
+  if (docMatch) {
+    const html = docMatch[0];
+    const titleFromJson = cleaned.match(/"title"\s*:\s*"([^"]{1,80})"/);
+    const titleFromTag = html.match(/<title[^>]*>([^<]{1,80})<\/title>/i);
+    return { title: titleFromJson?.[1] || titleFromTag?.[1] || "Yap App", html };
+  }
+
+  // Fallback B: just the <html>…</html> block, prepend doctype
+  const htmlBlock = cleaned.match(/<html[\s\S]*?<\/html\s*>/i);
+  if (htmlBlock) return { title: "Yap App", html: `<!DOCTYPE html>${htmlBlock[0]}` };
+
+  // Fallback C: the model gave us truncated JSON that opens with `{ "title": "...", "html": "<!DOCTYPE...`
+  // but never closes. Rip the html string out by finding its opening quote and
+  // assuming everything after is the (possibly truncated) HTML body.
+  const startMarker = cleaned.match(/"html"\s*:\s*"([\s\S]*)$/);
+  if (startMarker) {
+    let html = startMarker[1];
+    // Un-escape JSON string escapes
+    html = html
+      .replace(/\\"/g, '"')
+      .replace(/\\n/g, "\n")
+      .replace(/\\t/g, "\t")
+      .replace(/\\\\/g, "\\");
+    // Trim trailing JSON cruft (a closing brace, the trailing quote, etc.)
+    html = html.replace(/"\s*\}?\s*$/, "");
+    if (html.includes("<")) {
+      const titleFromJson = cleaned.match(/"title"\s*:\s*"([^"]{1,80})"/);
+      // Make sure it ends with </html> for the iframe to render cleanly
+      if (!/<\/html>/i.test(html)) html += "</body></html>";
+      return { title: titleFromJson?.[1] || "Yap App", html };
+    }
+  }
+
+  // Surface a friendly error AND log so we can debug from Vercel logs
+  console.error("[generateApp] Unparseable response from Gemini. First 500 chars:", cleaned.slice(0, 500));
+  throw new Error(
+    "The model returned a response we couldn't parse. Try saying it again with slightly different wording.",
+  );
 }
 
 /** Replace <img src="..."> URLs that point at known-broken or local-only sources
@@ -165,10 +249,22 @@ export async function reviewApp(
 ): Promise<AppReview> {
   const system = `${personaSystemPrompt}
 
-Output STRICT JSON only — no markdown:
-{ "spokenReview": "What you say out loud about this app (will be read in your voice). Stay in character. 2-3 sentences." }`;
+Stay in character. 2-3 sentences max. Return JSON with one field "spokenReview" — what you'll say out loud about this app, read aloud in your voice.`;
 
   const prompt = `App title: "${appTitle}"\n\nHTML preview (first 4000 chars):\n${htmlSnippet.slice(0, 4000)}`;
-  const raw = await callGemini(apiKey, prompt, system);
-  return JSON.parse(stripFences(raw)) as AppReview;
+  const raw = await callGemini(apiKey, prompt, system, {
+    responseSchema: {
+      type: "OBJECT",
+      properties: { spokenReview: { type: "STRING" } },
+      required: ["spokenReview"],
+    },
+    maxOutputTokens: 800,
+    temperature: 0.9,
+  });
+  try {
+    return JSON.parse(stripFences(raw)) as AppReview;
+  } catch {
+    // Last-ditch: take whatever raw text came back and use it directly
+    return { spokenReview: stripFences(raw).slice(0, 500).trim() };
+  }
 }

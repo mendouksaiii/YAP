@@ -58,6 +58,14 @@ REQUIREMENTS:
 - Include realistic placeholder content (not "Lorem ipsum" — actual relevant copy).
 - Use emoji or unicode for icons (no external icon libraries).
 
+IMAGES — VERY IMPORTANT:
+- DO NOT use placeholder.com, via.placeholder.com, dummyimage.com, lorempicsum, or any unreliable hosts.
+- DO NOT make up image URLs from random domains — they will 404.
+- For any photo/image, use https://picsum.photos/seed/<word>/<width>/<height> — this is the only allowed image host. The seed keyword can be anything (e.g. coffee, nature, food, city).
+- For avatars, use https://i.pravatar.cc/150?u=<unique-name> — also allowed.
+- For decorative graphics, prefer pure CSS gradients, inline SVG, or emoji. NEVER reference local files like /logo.png — there is no filesystem.
+- Every <img> tag MUST have width and height attributes set, plus loading="lazy".
+
 Output STRICT JSON (no markdown, no commentary):
 {
   "title": "Short catchy title (3-5 words)",
@@ -66,7 +74,37 @@ Output STRICT JSON (no markdown, no commentary):
 
   const raw = await callGemini(apiKey, userPrompt, system);
   const parsed = JSON.parse(stripFences(raw)) as GeneratedApp;
-  return parsed;
+  return { title: parsed.title, html: sanitizeImages(parsed.html) };
+}
+
+/** Replace <img src="..."> URLs that point at known-broken or local-only sources
+ *  with safe picsum.photos fallbacks. Also rewrites obviously made-up paths.
+ */
+function sanitizeImages(html: string): string {
+  const ALLOWED_HOSTS = ["picsum.photos", "i.pravatar.cc", "fastly.picsum.photos"];
+  let pic = 0;
+  return html.replace(/<img\b([^>]*?)>/gi, (full, attrs) => {
+    const srcMatch = attrs.match(/\bsrc\s*=\s*"([^"]*)"/i) || attrs.match(/\bsrc\s*=\s*'([^']*)'/i);
+    if (!srcMatch) return full;
+    const src = srcMatch[1].trim();
+
+    // Already safe (data URI, allowed CDN, valid SVG)?
+    if (src.startsWith("data:")) return full;
+    if (src.startsWith("blob:")) return full;
+    let host = "";
+    try { host = new URL(src, "https://x.invalid").hostname; } catch {}
+    if (ALLOWED_HOSTS.some((h) => host === h || host.endsWith("." + h))) return full;
+
+    // Replace with picsum.photos fallback. Pick dimensions that match the existing width/height when present.
+    const wMatch = attrs.match(/\bwidth\s*=\s*"?(\d+)"?/i);
+    const hMatch = attrs.match(/\bheight\s*=\s*"?(\d+)"?/i);
+    const w = wMatch ? Math.max(80, Math.min(1600, +wMatch[1])) : 600;
+    const h = hMatch ? Math.max(80, Math.min(1600, +hMatch[1])) : 400;
+    pic += 1;
+    const replaced = `https://picsum.photos/seed/yap${pic}/${w}/${h}`;
+    const newAttrs = attrs.replace(/\bsrc\s*=\s*"[^"]*"/i, `src="${replaced}"`).replace(/\bsrc\s*=\s*'[^']*'/i, `src="${replaced}"`);
+    return `<img${newAttrs}>`;
+  });
 }
 
 export interface AppReview {

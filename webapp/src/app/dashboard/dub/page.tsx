@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { getUser, setClonedVoice, logActivity } from "@/lib/store";
+import { startRecording, filenameFor, type ActiveRecording } from "@/lib/recorder";
 import { Mic, Stop, Loader, Languages, Play, Check, Volume, Globe, Sparkles } from "@/components/Icons";
 
 const LANGUAGES = [
@@ -39,8 +40,8 @@ export default function DubPage() {
   const [errorMsg, setErrorMsg] = useState("");
   const [recordingFor, setRecordingFor] = useState<"clone" | "dub" | null>(null);
 
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const chunksRef = useRef<Blob[]>([]);
+  const recordingRef = useRef<ActiveRecording | null>(null);
+  const purposeRef = useRef<"clone" | "dub" | null>(null);
 
   useEffect(() => {
     const u = getUser();
@@ -51,43 +52,45 @@ export default function DubPage() {
     }
   }, []);
 
-  const startRecording = async (purpose: "clone" | "dub") => {
+  const beginRecording = async (purpose: "clone" | "dub") => {
     try {
       setErrorMsg("");
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mime = MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm" : "audio/ogg";
-      const rec = new MediaRecorder(stream, { mimeType: mime });
-      mediaRecorderRef.current = rec;
-      chunksRef.current = [];
-      rec.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data); };
-      rec.onstop = async () => {
-        stream.getTracks().forEach((t) => t.stop());
-        const blob = new Blob(chunksRef.current, { type: mime });
-        if (purpose === "clone") await handleCloneSample(blob);
-        else await handleDubSample(blob);
-      };
-      rec.start();
+      const rec = await startRecording();
+      recordingRef.current = rec;
+      purposeRef.current = purpose;
       setRecordingFor(purpose);
       setPhase("recording");
       setStatusText(purpose === "clone" ? "Recording your voice sample…" : "Recording what you want dubbed…");
-    } catch {
-      setErrorMsg("Microphone permission denied.");
+    } catch (e: any) {
+      setErrorMsg(e?.message || "Microphone unavailable.");
       setPhase("error");
     }
   };
 
-  const stopRecording = () => {
-    mediaRecorderRef.current?.stop();
+  const stopRecording = async () => {
+    const rec = recordingRef.current;
+    const purpose = purposeRef.current;
+    if (!rec) return;
     setRecordingFor(null);
     setPhase("transcribing");
     setStatusText("Processing…");
+    try {
+      const { blob, mimeType } = await rec.stop();
+      recordingRef.current = null;
+      purposeRef.current = null;
+      if (purpose === "clone") await handleCloneSample(blob, mimeType);
+      else await handleDubSample(blob, mimeType);
+    } catch (e: any) {
+      setErrorMsg(e?.message || "Recording failed.");
+      setPhase("error");
+    }
   };
 
-  const handleCloneSample = async (blob: Blob) => {
+  const handleCloneSample = async (blob: Blob, mimeType: string) => {
     try {
       setStatusText("Cloning your voice…");
       const form = new FormData();
-      form.append("file", blob, "sample.webm");
+      form.append("file", blob, filenameFor(mimeType).replace(/^audio/, "sample"));
       form.append("name", "yap-" + (getUser()?.email || "user"));
       const r = await fetch("/api/clone-voice", { method: "POST", body: form });
       if (!r.ok) throw new Error((await r.json()).error || "Clone failed");
@@ -102,12 +105,12 @@ export default function DubPage() {
     }
   };
 
-  const handleDubSample = async (blob: Blob) => {
+  const handleDubSample = async (blob: Blob, mimeType: string) => {
     if (!voiceId) return;
     try {
       // STT to get the source text
       const form = new FormData();
-      form.append("file", blob, "audio.webm");
+      form.append("file", blob, filenameFor(mimeType));
       const sttRes = await fetch("/api/stt", { method: "POST", body: form });
       if (!sttRes.ok) throw new Error("STT failed");
       const { text } = await sttRes.json();
@@ -186,7 +189,7 @@ export default function DubPage() {
           </p>
 
           <button
-            onClick={recording ? stopRecording : busy ? undefined : () => startRecording("clone")}
+            onClick={recording ? stopRecording : busy ? undefined : () => beginRecording("clone")}
             disabled={busy}
             className={`group relative mx-auto block w-28 h-28 rounded-full transition-transform duration-200 ${busy ? "opacity-60 cursor-wait" : "cursor-pointer hover:scale-[1.04] active:scale-95"}`}
           >
@@ -214,7 +217,7 @@ export default function DubPage() {
               <h2 className="text-xl font-bold mb-4">Speak something to dub</h2>
 
               <button
-                onClick={recording ? stopRecording : busy ? undefined : () => startRecording("dub")}
+                onClick={recording ? stopRecording : busy ? undefined : () => beginRecording("dub")}
                 disabled={busy}
                 className={`group relative mx-auto block w-24 h-24 rounded-full transition-transform duration-200 ${busy ? "opacity-60 cursor-wait" : "cursor-pointer hover:scale-[1.04] active:scale-95"}`}
               >

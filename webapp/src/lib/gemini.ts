@@ -1,8 +1,48 @@
-const GEMINI_MODEL = "gemini-2.5-flash";
-const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
+// Fallback chain — Gemini's free tier rate-limits each model independently.
+// We prefer the "lite" variants (much higher free quota: ~1500 RPD vs 20 RPD on
+// the regular 2.5-flash). On a 429 we automatically rotate to the next model.
+//
+// Order matters: cheaper/higher-quota first, premium last.
+const MODEL_CHAIN = [
+  "gemini-2.5-flash-lite",   // generous free tier, good enough for our tasks
+  "gemini-flash-lite-latest", // alias to the latest lite — different quota bucket
+  "gemini-2.5-flash",          // higher quality, only 20 RPD on free tier
+  "gemini-flash-latest",       // last resort
+];
+
+const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
 
 interface GeminiResponse {
   candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+}
+
+class GeminiError extends Error {
+  constructor(public status: number, message: string) { super(message); }
+}
+
+async function callGeminiOnce(
+  apiKey: string,
+  model: string,
+  prompt: string,
+  systemInstruction?: string,
+): Promise<string> {
+  const body: Record<string, unknown> = {
+    contents: [{ parts: [{ text: prompt }] }],
+    generationConfig: { temperature: 0.85, maxOutputTokens: 16384 },
+  };
+  if (systemInstruction) body.systemInstruction = { parts: [{ text: systemInstruction }] };
+
+  const res = await fetch(`${GEMINI_BASE}/${model}:generateContent?key=${apiKey}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+
+  if (!res.ok) throw new GeminiError(res.status, `${model} failed: ${res.status} ${await res.text()}`);
+  const data = (await res.json()) as GeminiResponse;
+  const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+  if (!text) throw new GeminiError(500, `${model} returned no text`);
+  return text;
 }
 
 async function callGemini(
@@ -10,26 +50,21 @@ async function callGemini(
   prompt: string,
   systemInstruction?: string,
 ): Promise<string> {
-  const body: Record<string, unknown> = {
-    contents: [{ parts: [{ text: prompt }] }],
-    generationConfig: {
-      temperature: 0.85,
-      maxOutputTokens: 16384,
-    },
-  };
-  if (systemInstruction) body.systemInstruction = { parts: [{ text: systemInstruction }] };
-
-  const res = await fetch(`${GEMINI_URL}?key=${apiKey}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-
-  if (!res.ok) throw new Error(`Gemini failed: ${res.status} ${await res.text()}`);
-  const data = (await res.json()) as GeminiResponse;
-  const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-  if (!text) throw new Error("Gemini returned no text");
-  return text;
+  let lastErr: GeminiError | null = null;
+  for (const model of MODEL_CHAIN) {
+    try {
+      return await callGeminiOnce(apiKey, model, prompt, systemInstruction);
+    } catch (err) {
+      lastErr = err instanceof GeminiError ? err : new GeminiError(500, String(err));
+      // Only rotate on quota / availability errors. On a true 4xx (bad input) bail immediately.
+      if (lastErr.status !== 429 && lastErr.status !== 503 && lastErr.status !== 500) break;
+      // try next model
+    }
+  }
+  throw new Error(
+    lastErr?.message ||
+      "All Gemini models exhausted. Free tier hit its daily cap — try again in a few hours.",
+  );
 }
 
 function stripFences(s: string): string {

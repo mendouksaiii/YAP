@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none">
+  <!-- Activity-bar icon: monochrome to inherit Cursor's theme color via currentColor -->
+  <path d="M52 6 C76 6 92 24 92 46 C92 63 81 78 65 84 L52 96 L46 84 C24 82 8 64 8 46 C8 24 28 6 52 6 Z"
+        fill="none" stroke="currentColor" stroke-width="6" stroke-linejoin="round"/>
+  <circle cx="42" cy="48" r="5" fill="currentColor"/>
+  <circle cx="60" cy="48" r="5" fill="currentColor"/>
+</svg>

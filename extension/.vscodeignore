@@ -1,6 +1,7 @@
 .vscode/**
 .vscode-test/**
 src/**
+scripts/**
 .gitignore
 .yarnrc
 vsc-extension-quickstart.md
@@ -10,3 +11,4 @@ vsc-extension-quickstart.md
 **/*.ts
 !resources/**
 node_modules/**
+yap-*.vsix

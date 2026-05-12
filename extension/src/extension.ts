@@ -117,6 +117,14 @@ class YapPanelProvider implements vscode.WebviewViewProvider {
           case "speak":
             await this.handleSpeak(msg.personaId, msg.text);
             break;
+          case "open-settings":
+            await vscode.commands.executeCommand("workbench.action.openSettings", "@ext:yap.yap");
+            break;
+          case "open-external":
+            if (typeof msg.url === "string") {
+              await vscode.env.openExternal(vscode.Uri.parse(msg.url));
+            }
+            break;
         }
       } catch (err: any) {
         this.post({ type: "error", message: err.message || String(err) });
@@ -233,6 +241,8 @@ class YapPanelProvider implements vscode.WebviewViewProvider {
     const personasJson = JSON.stringify(
       PERSONAS.map((p) => ({ id: p.id, name: p.name, emoji: p.emoji })),
     );
+    const cfg = vscode.workspace.getConfiguration(CONFIG_NS);
+    const needsSetup = !cfg.get<string>("elevenlabsApiKey") || !cfg.get<string>("geminiApiKey");
     const nonce = randomNonce();
     return /* html */ `<!DOCTYPE html>
 <html>
@@ -261,14 +271,15 @@ body { margin: 0; padding: 14px 12px; background: var(--bg); color: var(--text);
   font-feature-settings: "ss01"; -webkit-font-smoothing: antialiased; }
 
 .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
-.logo { display: flex; align-items: center; gap: 7px; }
-.logo-mark { width: 26px; height: 26px; border-radius: 7px;
-  background: linear-gradient(135deg, var(--accent), var(--accent-2));
-  display: flex; align-items: center; justify-content: center;
-  font-size: 14px; font-weight: 800; color: #fff;
-  box-shadow: 0 0 22px rgba(255, 94, 58, 0.35); }
+.logo { display: flex; align-items: center; gap: 8px; }
+.logo svg { width: 28px; height: 28px;
+  filter: drop-shadow(0 0 14px rgba(255, 94, 58, 0.4));
+  animation: float 6s ease-in-out infinite; }
 .logo-text { font-size: 18px; font-weight: 800; letter-spacing: -0.5px; }
 .logo-tag { font-family: 'Geist Mono', monospace; font-size: 9px; color: var(--muted); margin-left: 3px; }
+@keyframes float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-2px); } }
+.yap-eyes { animation: yapBlink 5.5s infinite; transform-origin: center 48px; }
+@keyframes yapBlink { 0%,92%,100% { transform: scaleY(1); } 94%,98% { transform: scaleY(0.1); } }
 .live-pill { font-size: 9px; font-weight: 600; padding: 3px 7px; border-radius: 999px;
   background: rgba(74,222,128,0.12); color: var(--green); border: 1px solid rgba(74,222,128,0.25);
   display: flex; align-items: center; gap: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
@@ -344,7 +355,35 @@ body { margin: 0; padding: 14px 12px; background: var(--bg); color: var(--text);
 .transcript { background: rgba(255,255,255,0.04); border-radius: 7px; padding: 8px 10px;
   font-size: 11px; font-style: italic; margin-bottom: 8px; border-left: 2px solid var(--accent); }
 .status { font-family: 'Geist Mono', monospace; font-size: 10px; color: var(--muted);
-  padding: 6px 4px; min-height: 14px; }
+  padding: 6px 4px; min-height: 14px; word-break: break-word; }
+.status.error { color: #f87171; }
+
+.setup-card { background: linear-gradient(135deg, rgba(255,94,58,0.08), rgba(255,138,58,0.04));
+  border: 1px solid rgba(255,94,58,0.25); border-radius: 10px; padding: 12px;
+  margin-bottom: 12px; }
+.setup-card .label { font-mono text-[9px]; font-size: 9px; font-weight: 700;
+  color: var(--accent); text-transform: uppercase; letter-spacing: 1px;
+  margin-bottom: 4px; display: flex; align-items: center; gap: 4px; font-family: 'Geist Mono', monospace; }
+.setup-card .title { font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 4px; }
+.setup-card .body { font-size: 11px; color: var(--muted); line-height: 1.5; margin-bottom: 8px; }
+.setup-card .ol { margin: 0 0 8px 14px; padding: 0; font-size: 11px; color: var(--muted); }
+.setup-card .ol li { margin-bottom: 3px; }
+.setup-card .ol code { font-family: 'Geist Mono', monospace; font-size: 10px;
+  background: rgba(255,255,255,0.06); padding: 1px 5px; border-radius: 3px; color: var(--text); }
+.setup-card .open-settings { display: inline-flex; align-items: center; gap: 5px;
+  padding: 6px 10px; border-radius: 6px;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  color: #fff; font-size: 11px; font-weight: 600; cursor: pointer;
+  border: none; font-family: inherit;
+  box-shadow: 0 2px 12px rgba(255,94,58,0.35); }
+.setup-card .open-settings:hover { box-shadow: 0 4px 18px rgba(255,94,58,0.5); }
+
+.footer { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.footer-link { font-family: 'Geist Mono', monospace; font-size: 9px; color: var(--muted);
+  text-decoration: none; cursor: pointer; transition: color 0.15s; }
+.footer-link:hover { color: var(--accent); }
+.footer-link svg { display: inline-block; width: 9px; height: 9px; vertical-align: middle; margin-left: 3px; }
 
 audio { display: none; }
 </style>
@@ -352,12 +391,43 @@ audio { display: none; }
 <body>
 <div class="header">
   <div class="logo">
-    <div class="logo-mark">Y</div>
+    <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" aria-label="Yap">
+      <defs>
+        <linearGradient id="yap-bubble" x1="100%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#ffb380"/>
+          <stop offset="35%" stop-color="#ff8a3a"/>
+          <stop offset="70%" stop-color="#ff5e3a"/>
+          <stop offset="100%" stop-color="#cc2e1a"/>
+        </linearGradient>
+        <linearGradient id="yap-blob" x1="0%" y1="100%" x2="100%" y2="0%">
+          <stop offset="0%" stop-color="#ffd9b8" stop-opacity="0.95"/>
+          <stop offset="100%" stop-color="#ff8a3a" stop-opacity="0"/>
+        </linearGradient>
+      </defs>
+      <path d="M52 6 C76 6 92 24 92 46 C92 63 81 78 65 84 L52 96 L46 84 C24 82 8 64 8 46 C8 24 28 6 52 6 Z"
+            fill="url(#yap-bubble)" stroke="#fff" stroke-width="3" stroke-linejoin="round"/>
+      <path d="M30 35 C30 25 42 18 55 22 C50 38 42 50 32 56 C26 50 28 42 30 35 Z" fill="url(#yap-blob)"/>
+      <g class="yap-eyes">
+        <circle cx="42" cy="48" r="5" fill="#fff"/>
+        <circle cx="60" cy="48" r="5" fill="#fff"/>
+      </g>
+    </svg>
     <div class="logo-text">Yap</div>
-    <span class="logo-tag">v0.2</span>
+    <span class="logo-tag">v0.3</span>
   </div>
   <div class="live-pill">Live</div>
 </div>
+
+${needsSetup ? `<div class="setup-card">
+  <div class="label">⚠ first-run setup</div>
+  <div class="title">Add your API keys to get started</div>
+  <div class="body">Yap needs two free API keys to work:</div>
+  <ol class="ol">
+    <li><code>yap.elevenlabsApiKey</code> from <span style="color:var(--text)">elevenlabs.io</span></li>
+    <li><code>yap.geminiApiKey</code> from <span style="color:var(--text)">aistudio.google.com</span></li>
+  </ol>
+  <button class="open-settings" id="openSettings">Open Settings →</button>
+</div>` : ""}
 
 <div class="modes">
   <button class="mode active" data-mode="build">🛠️ Build</button>
@@ -391,6 +461,16 @@ audio { display: none; }
 
 <div class="section-label" id="personaLabel">Pick your reviewer</div>
 <div class="personas" id="personas"></div>
+
+<div class="footer">
+  <a href="https://yap-flame.vercel.app" class="footer-link" id="openWebapp">
+    yap-flame.vercel.app
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M15 3h6v6"/><path d="M10 14L21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+    </svg>
+  </a>
+  <span class="footer-link" style="cursor:default;">cursor + elevenlabs</span>
+</div>
 
 <audio id="player"></audio>
 
@@ -539,9 +619,13 @@ window.addEventListener('message', (e) => {
     case 'roast-state':
       roastEnabled = m.enabled; updateRoastToggle(); break;
     case 'status':
-      $status.textContent = m.message; break;
+      $status.textContent = m.message;
+      $status.classList.remove('error');
+      break;
     case 'error':
-      $status.textContent = '⚠ ' + m.message; break;
+      $status.textContent = '⚠ ' + m.message;
+      $status.classList.add('error');
+      break;
     case 'transcript':
       $reviewArea.innerHTML = '<div class="transcript">"' + m.text + '"</div>';
       if (m.mode === 'build') vscode.postMessage({ type: 'build', prompt: m.text });
@@ -580,6 +664,14 @@ function connectBridge(port) {
     evtSource.onerror = () => { /* will auto-reconnect */ };
   } catch (e) {}
 }
+
+// Setup card button
+const $setupBtn = document.getElementById('openSettings');
+if ($setupBtn) $setupBtn.onclick = () => vscode.postMessage({ type: 'open-settings' });
+
+// Footer webapp link
+const $webappBtn = document.getElementById('openWebapp');
+if ($webappBtn) $webappBtn.onclick = (e) => { e.preventDefault(); vscode.postMessage({ type: 'open-external', url: 'https://yap-flame.vercel.app' }); };
 
 vscode.postMessage({ type: 'ready' });
 </script>

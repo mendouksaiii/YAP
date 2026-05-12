@@ -1,15 +1,25 @@
 {
   "name": "yap",
   "displayName": "Yap — Voice-First Coding",
-  "description": "Build apps and get code reviews from famous devs — entirely by voice.",
-  "version": "0.1.0",
+  "description": "Build apps by talking. Get code reviewed by famous devs in their actual cloned voices. Live Roast Mode reacts to every Cursor edit.",
+  "version": "0.3.0",
   "publisher": "yap",
+  "icon": "media/icon.png",
   "engines": {
     "vscode": "^1.85.0"
   },
   "categories": [
     "Other",
     "AI"
+  ],
+  "keywords": [
+    "voice",
+    "ai",
+    "elevenlabs",
+    "cursor",
+    "code review",
+    "tts",
+    "speech to text"
   ],
   "activationEvents": [
     "onStartupFinished"
@@ -35,7 +45,7 @@
         {
           "id": "yap-sidebar",
           "title": "Yap",
-          "icon": "media/mic.svg"
+          "icon": "media/yap.svg"
         }
       ]
     },
@@ -88,8 +98,9 @@
   "devDependencies": {
     "@types/node": "^20.0.0",
     "@types/vscode": "^1.85.0",
-    "typescript": "^5.3.0",
-    "@vscode/vsce": "^2.22.0"
+    "@vscode/vsce": "^2.22.0",
+    "sharp": "^0.34.5",
+    "typescript": "^5.3.0"
   },
   "optionalDependencies": {
     "@cursor/sdk": "*"

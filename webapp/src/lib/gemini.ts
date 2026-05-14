@@ -160,7 +160,7 @@ Return your response as JSON with two fields:
  */
 function sanitizeLinks(html: string): string {
   // 1. href rewrites
-  html = html.replace(/<a\b([^>]*?)\bhref\s*=\s*(["'])([^"']+)\2/gi, (full, before, quote, href) => {
+  html = html.replace(/<a\b([^>]*?)\bhref\s*=\s*(["'])([^"']+)\2/gi, (full: string, before: string, _quote: string, href: string) => {
     // Leave alone: anchors, mailto/tel, full URLs, javascript:, data:, blank
     if (
       !href ||
@@ -189,9 +189,13 @@ function sanitizeLinks(html: string): string {
 
   // 2. inject smooth-scroll if missing
   if (!/scroll-behavior\s*:\s*smooth/i.test(html)) {
-    html = html.replace(/<html\b([^>]*)>/i, (m, attrs) => {
+    html = html.replace(/<html\b([^>]*)>/i, (_m: string, attrs: string) => {
       if (/style\s*=/i.test(attrs)) {
-        return `<html${attrs.replace(/style\s*=\s*(["'])([^"']*)\1/i, (_m2, q, s) => `style=${q}${s};scroll-behavior:smooth${q}`)}>`;
+        const newAttrs = attrs.replace(
+          /style\s*=\s*(["'])([^"']*)\1/i,
+          (_m2: string, q: string, s: string) => `style=${q}${s};scroll-behavior:smooth${q}`,
+        );
+        return `<html${newAttrs}>`;
       }
       return `<html${attrs} style="scroll-behavior:smooth">`;
     });

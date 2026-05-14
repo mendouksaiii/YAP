@@ -109,6 +109,15 @@ REQUIREMENTS:
 - Include realistic placeholder content (not "Lorem ipsum" — actual relevant copy).
 - Use emoji or unicode for icons (no external icon libraries).
 
+NAVIGATION — CRITICAL:
+- This is ALWAYS a single-page site. There is NO router, no server, no other files.
+- For multi-section sites (coffee shops, restaurants, portfolios, landing pages), build EVERY "page" as a section in this same HTML document, stacked top-to-bottom.
+- Each section gets an id (e.g. id="home", id="menu", id="about", id="contact").
+- Nav links MUST use in-page anchors: <a href="#menu">Menu</a>. NEVER <a href="menu.html"> or <a href="/menu"> — these will 404.
+- Add <html style="scroll-behavior: smooth"> so anchor clicks smoothly scroll the user to the section.
+- A sticky/fixed top nav is encouraged. Highlight the active section if you can.
+- If the user asks for a "wizard" or "multi-step" UI, use sections + JS that toggles visibility (display: none/block) instead of multiple files.
+
 IMAGES — VERY IMPORTANT:
 - DO NOT use placeholder.com, via.placeholder.com, dummyimage.com, lorempicsum, or any unreliable hosts.
 - DO NOT make up image URLs from random domains — they will 404.
@@ -137,7 +146,58 @@ Return your response as JSON with two fields:
   });
 
   const parsed = parseAppResponse(raw);
-  return { title: parsed.title, html: sanitizeImages(parsed.html) };
+  let html = sanitizeImages(parsed.html);
+  html = sanitizeLinks(html);
+  return { title: parsed.title, html };
+}
+
+/** Rewrite cross-page links (href="menu.html", href="/about") into in-page
+ *  anchor links (href="#menu"). Generated apps live in a single HTML file
+ *  with no router, so any "other page" link would 404. This is a safety
+ *  net for when the model ignores the no-cross-page-links instruction.
+ *
+ *  Also injects smooth scroll behaviour if the document didn't include it.
+ */
+function sanitizeLinks(html: string): string {
+  // 1. href rewrites
+  html = html.replace(/<a\b([^>]*?)\bhref\s*=\s*(["'])([^"']+)\2/gi, (full, before, quote, href) => {
+    // Leave alone: anchors, mailto/tel, full URLs, javascript:, data:, blank
+    if (
+      !href ||
+      href.startsWith("#") ||
+      href.startsWith("mailto:") ||
+      href.startsWith("tel:") ||
+      href.startsWith("javascript:") ||
+      href.startsWith("data:") ||
+      href.startsWith("blob:") ||
+      /^https?:\/\//i.test(href) ||
+      href.startsWith("//")
+    ) {
+      return full;
+    }
+
+    // Rewrite "menu.html" / "menu" / "/menu" / "./menu.html" → "#menu"
+    const slug = href
+      .replace(/^\.?\/+/, "")              // strip leading ./ or /
+      .replace(/\.(html?|php|aspx?)$/i, "") // strip file extension
+      .replace(/^index$/i, "home")           // index → home
+      .replace(/[^a-z0-9_-]/gi, "-")
+      .toLowerCase();
+    if (!slug) return full;
+    return `<a${before}href="#${slug}"`;
+  });
+
+  // 2. inject smooth-scroll if missing
+  if (!/scroll-behavior\s*:\s*smooth/i.test(html)) {
+    html = html.replace(/<html\b([^>]*)>/i, (m, attrs) => {
+      if (/style\s*=/i.test(attrs)) {
+        return `<html${attrs.replace(/style\s*=\s*(["'])([^"']*)\1/i, (_m2, q, s) => `style=${q}${s};scroll-behavior:smooth${q}`)}>`;
+      }
+      return `<html${attrs} style="scroll-behavior:smooth">`;
+    });
+  }
+
+  return html;
 }
 
 /** Robust parser: tries JSON first, falls back to extracting raw HTML if the model
